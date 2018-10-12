@@ -1,8 +1,8 @@
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Scanner;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The class to carry out Plagiarism Detection
@@ -14,9 +14,9 @@ public class PlagiarismDetector {
 	static int tupleSize;
 	static File synonymsFile, file1, file2;
 
-	static HashMap<String, ArrayList<String>> synonymGroups = new HashMap<>();
-	static HashMap<ArrayList<String>, Integer> file1tuples = new HashMap<>();
-	static HashMap<ArrayList<String>, Integer> file2tuples = new HashMap<>();
+	static ConcurrentHashMap<String, ArrayList<String>> synonymGroups = new ConcurrentHashMap<>();
+	static ConcurrentHashMap<String, Integer> file1tuples = new ConcurrentHashMap<>();
+	static ConcurrentHashMap<String, Integer> file2tuples = new ConcurrentHashMap<>();
 
 	/**
 	 * The main method of the Plagiarism Detector class
@@ -30,11 +30,11 @@ public class PlagiarismDetector {
 		loadSynonyms(synonymsFile);
 
 		file1tuples = tokenize(parseFile(file1));
-		
+
 		substituteWithSynonyms(file1tuples);
 
 		file2tuples = tokenize(parseFile(file2));
-		
+
 		substituteWithSynonyms(file2tuples);
 
 		System.out.println(detectPlagiarism() + "%");
@@ -70,15 +70,16 @@ public class PlagiarismDetector {
 	 * @param tuplesInFile:
 	 *            A HashMap representing the tuples in a file
 	 */
-	public static void substituteWithSynonyms(HashMap<ArrayList<String>, Integer> tuplesInFile) {
-		for (ArrayList<String> tuples : tuplesInFile.keySet()) {
-			for (String key : tuples) {
+	public static void substituteWithSynonyms(ConcurrentHashMap<String, Integer> tuplesInFile) {
+		for (String tuples : tuplesInFile.keySet()) {
+			for (String key : tuples.split(" ")) {
 				if (synonymGroups.containsKey(key)) {
-					tuples.remove(key);
-					tuples.add(synonymGroups.get(key).toString());
+					tuplesInFile.remove(tuples);
+					tuplesInFile.put(tuples.replace(key, (synonymGroups.get(key).toString())), 1);
 				}
 			}
 		}
+
 	}
 
 	/**
@@ -87,8 +88,8 @@ public class PlagiarismDetector {
 	public static double detectPlagiarism() {
 		double matchingTuples = 0;
 
-		HashMap<ArrayList<String>, Integer> largerTuples;
-		HashMap<ArrayList<String>, Integer> smallerTuples;
+		ConcurrentHashMap<String, Integer> largerTuples;
+		ConcurrentHashMap<String, Integer> smallerTuples;
 
 		if (file1tuples.size() >= file2tuples.size()) {
 			largerTuples = file1tuples;
@@ -98,8 +99,8 @@ public class PlagiarismDetector {
 			smallerTuples = file1tuples;
 		}
 
-		for (ArrayList<String> key : largerTuples.keySet()) {
-			if (smallerTuples.toString().contains(key.toString())) {
+		for (String key : largerTuples.keySet()) {
+			if (smallerTuples.containsKey(key)) {
 				matchingTuples++;
 			}
 		}
@@ -127,25 +128,23 @@ public class PlagiarismDetector {
 	 * @param wordsList:
 	 *            The string to convert to tuples
 	 */
-	public static HashMap<ArrayList<String>, Integer> tokenize(String wordsList) {
-		HashMap<ArrayList<String>, Integer> tuplesInFile = new HashMap<>();
-		int tuplesCount = 0;
+	public static ConcurrentHashMap<String, Integer> tokenize(String wordsList) {
+		ConcurrentHashMap<String, Integer> tuplesInFile = new ConcurrentHashMap<>();
 
 		String[] wordsAsArray = wordsList.split(" ");
-		ArrayList<String> tuples;
+		StringBuilder tuples;
 		int count;
 
 		for (int i = 0; i <= (wordsAsArray.length - tupleSize); i++) {
-			tuples = new ArrayList<>();
+			tuples = new StringBuilder();
 			count = 0;
 
 			while (count < tupleSize) {
-				tuples.add(wordsAsArray[count + i]);
+				tuples.append(wordsAsArray[count + i] + " ");
 				count++;
 			}
 
-			tuplesInFile.put(tuples, tuplesCount);
-			tuplesCount++;
+			tuplesInFile.put(tuples.toString(), 1);
 		}
 		return tuplesInFile;
 	}
